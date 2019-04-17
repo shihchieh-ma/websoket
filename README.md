@@ -11,20 +11,21 @@ okhttp的websocket封装,添加重连机制,消息分发等
 
 **创建`WsHelper`**
 
-	WsHelper wsHelper = new WsHelper.Builder()
+	WsHelper  wsHelper = new WsHelper.Builder()
                 .url("")//ws地址,*必填
                 .netStateService(getApplicationContext())//启动网络状态变化监听的服务,*必填
                 .autoReconnect(true)//自动重连,默认true
                 .autoReconnectTime(2000)//重连时间,默认失败2s后重连
                 .pingSpace(2000)//发ping间隔,默认2s
                 .enanbleLog(true)//打印日志,默认为true
-                .callTimeOut(10)//连接整个过程的超时时长,默认20s
                 .connectTimeOut(5)//连接超时时长,默认10s
                 .readTimeOut(5)//读取超时时长,默认10s
                 .wirteTimeOut(5)//写超时时长,默认10s
                 .msgListener(this)//消息回调
                 .signalEventListener(this)//信令回调
                 .wsStateListener(this)//ws状态变更回调
+                .sslSocketFactory()//数字签名认证,默认无
+                .hostnameVerifier()//IP地址和hostnanme验证,默认OkHostnameVerifier
                 .build();
 
 
@@ -42,7 +43,7 @@ okhttp的websocket封装,添加重连机制,消息分发等
 
 **OnWsStateListener**
 	
-	 /**
+    /**
      * ws连接成功
      */
     void onWsOpen();
@@ -54,19 +55,10 @@ okhttp的websocket封装,添加重连机制,消息分发等
 
     /**
      * ws连接失败
-     *
-     * @param errorInfo
+     * @param e
+     * @param response
      */
-    void onWsFail(String errorInfo);
-
-
-    /**
-     * ws关闭中
-     *
-     * @param code
-     * @param reason
-     */
-    void onWsClosing(int code, String reason);
+    void onWsFail(IOException e, Response response);
 
     /**
      * ws连接关闭
@@ -75,7 +67,7 @@ okhttp的websocket封装,添加重连机制,消息分发等
      * @param reason
      */
     void onWsClosed(int code, String reason);
-
+    
 **OnMsgListener**
 
 
@@ -86,7 +78,7 @@ okhttp的websocket封装,添加重连机制,消息分发等
      */
     void onWsMessage(String msg);
 
-**OnMsgListener**
+**OnSignalEventListener**
 
 
 	这个需要自定义回调,因为这个是根据业务变化的.
