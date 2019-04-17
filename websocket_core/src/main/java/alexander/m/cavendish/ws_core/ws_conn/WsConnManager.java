@@ -334,7 +334,7 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
 
     @Override
     public void onNetChangeCallback(boolean hasNet) {
-        if (hasNet && mWsState == WsState.FAILED) {
+        if (hasNet && mWsState == WsState.FAILED && mAutoReconnect) {
             startConnWs();
         }
         mIsNetEnable = hasNet;
