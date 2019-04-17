@@ -17,9 +17,6 @@ allprojects {
     repositories {
         google()
         jcenter()
-        flatDir {
-            dirs '../webrtc_wrap/libs'
-        }
     }
 }
 
@@ -39,21 +36,10 @@ ext {
     releaseVersion = false
 
     supportLibraryVersion = "28.0.0"
-    webrtcVersion = "1.0.20723"
-    fastjsonVersion = "1.1.70.android"
-    okhttpVersion = "3.12.1"
     okhttpWSVersion = "3.4.2"
 
     androidDependencies = [
             appcompat_v7: "com.android.support:appcompat-v7:${supportLibraryVersion}",
-            design      : "com.android.support:design:${supportLibraryVersion}",
-            okhttp      : "com.squareup.okhttp3:okhttp:${okhttpVersion}",
-            recyclerView: "com.android.support:recyclerview-v7:${supportLibraryVersion}",
             okhttp_ws   : "com.squareup.okhttp3:okhttp-ws:${okhttpWSVersion}",
-            webrtc      : "org.webrtc:google-webrtc:${webrtcVersion}",
-            recycleview : "com.android.support:recyclerview-v7:${supportLibraryVersion}",
-            cardview    : "com.android.support:cardview-v7:${supportLibraryVersion}",
-            fastjson    : "com.alibaba:fastjson:${fastjsonVersion}",
-        
     ]
 }

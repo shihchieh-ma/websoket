@@ -21,6 +21,6 @@ android {
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation androidDependencies.okhttp
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    api androidDependencies.okhttp_ws
 }

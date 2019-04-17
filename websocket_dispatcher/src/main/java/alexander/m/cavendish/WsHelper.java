@@ -3,6 +3,10 @@ package alexander.m.cavendish;
 import android.content.Context;
 import android.text.TextUtils;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
+
 import alexander.m.cavendish.ws_core.ws_conn.WsConnManager;
 import alexander.m.cavendish.ws_dispatcher.OnMsgListener;
 import alexander.m.cavendish.ws_dispatcher.OnSignalEventListener;
@@ -25,18 +29,19 @@ public final class WsHelper {
     private static long sAutoReconnectTime = 2000;
     private static int sReadTimeOut = 10;
     private static int sWriteTimeOut = 10;
-    private static int sCallTimeOut = 20;
     private static int sConnectTimeOut = 10;
     //发ping间隔
     private static long sPingSpace = 2000;
     private static String sUrl;
     private static Context sAppliationContext;
     private static WsDispatcher mWsDispatcher;
+    private static SSLSocketFactory sslSocketFactory;
+    private static X509TrustManager sX509TrustManager;
+    private static HostnameVerifier sHostnameVerifier;
 
     private WsHelper() {
-        wsConnManager = new WsConnManager.Builder()
+        WsConnManager.Builder wb = new WsConnManager.Builder()
                 .url(sUrl)
-                .callTimeOut(sCallTimeOut)
                 .connectTimeOut(sConnectTimeOut)
                 .readTimeOut(sReadTimeOut)
                 .wirteTimeOut(sWriteTimeOut)
@@ -45,8 +50,15 @@ public final class WsHelper {
                 .pingSpace(sPingSpace)
                 .wsListener(mWsDispatcher)
                 .autoReconnect(sAutoReconnect)
-                .autoReconnTime(sAutoReconnectTime)
-                .build();
+                .autoReconnTime(sAutoReconnectTime);
+        if (null != sX509TrustManager) {
+            wb.sslSocketFactory(sslSocketFactory, sX509TrustManager);
+        }
+        if (null != sHostnameVerifier) {
+            wb.hostnameVerifier(sHostnameVerifier);
+        }
+        wsConnManager = wb.build();
+
     }
 
     public void sendMessage(String message) {
@@ -77,6 +89,15 @@ public final class WsHelper {
         }
         if (null != sAppliationContext) {
             sAppliationContext = null;
+        }
+        if (null != sX509TrustManager) {
+            sX509TrustManager = null;
+        }
+        if (null != sslSocketFactory) {
+            sslSocketFactory = null;
+        }
+        if (null != sHostnameVerifier) {
+            sHostnameVerifier = null;
         }
     }
 
@@ -117,11 +138,6 @@ public final class WsHelper {
             return this;
         }
 
-        public Builder callTimeOut(int callTimeOut) {
-            sCallTimeOut = callTimeOut;
-            return this;
-        }
-
         public Builder connectTimeOut(int connTimeOut) {
             sConnectTimeOut = connTimeOut;
             return this;
@@ -149,6 +165,17 @@ public final class WsHelper {
 
         public Builder wsStateListener(OnWsStateListener listener) {
             wb = wb.wsStateListener(listener);
+            return this;
+        }
+
+        public Builder sslSocketFactory(SSLSocketFactory sslSocketFactory, X509TrustManager manager) {
+            WsHelper.sslSocketFactory = sslSocketFactory;
+            WsHelper.sX509TrustManager = manager;
+            return this;
+        }
+
+        public Builder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+            WsHelper.sHostnameVerifier = hostnameVerifier;
             return this;
         }
 

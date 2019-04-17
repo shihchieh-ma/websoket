@@ -12,9 +12,14 @@ import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
 
 import alexander.m.cavendish.WsListener;
 import alexander.m.cavendish.ws_core.OnNetChangeListener;
@@ -22,10 +27,13 @@ import alexander.m.cavendish.ws_core.OnNetStateChangeService;
 import alexander.m.cavendish.ws_core.ThreadTask;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
-import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
+import okhttp3.ResponseBody;
+import okhttp3.ws.WebSocket;
+import okhttp3.ws.WebSocketCall;
+import okhttp3.ws.WebSocketListener;
+import okio.Buffer;
 
 /**
  * @Author:mashijie
@@ -39,11 +47,13 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
     private String mUrl = "";
     private int mReadTimeOut;
     private int mWriteTimeOut;
-    private int mCallTimeOut;
     private int mConnectTimeOut;
     private boolean mEnableLog;
     private boolean mAutoReconnect;
     private long mAutoReconnTime;
+    private SSLSocketFactory mSslScoketFactory;
+    private X509TrustManager mX509TrustManager;
+    private HostnameVerifier mHostnameVerifier;
     private volatile int mWsState = alexander.m.cavendish.ws_core.ws_conn.WsState.NORMAL;
     //发ping间隔
     private long mPingSpace;
@@ -81,9 +91,17 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
     public boolean handleMessage(Message msg) {
         if (mIsNetEnable) {
             if (msg.what == 0) {
-                //发送ping
-                sendMessage("ping");
-                sPingHandler.sendEmptyMessageDelayed(0, mPingSpace);
+                try {
+                    //发送ping
+                    Buffer buffer = new Buffer();
+                    buffer.write("ping".getBytes(), 0, "ping".length());
+                    mWebSocket.sendPing(buffer);
+                    if (mEnableLog) {
+                        Log.d("WsConnManager", "OnMessage-Send:ping");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             } else if (msg.what == 1) {
                 //重连
                 startConnWs();
@@ -121,49 +139,41 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
                 if (null != mWsListener) {
                     mWsListener.onWsOpen();
                 }
-                sendMessage("ping");
                 mIsNetEnable = true;
                 if (null == mPingHandlerThread) {
                     mPingHandlerThread = new HandlerThread("WS-PING");
                     mPingHandlerThread.start();
                 }
-                getsPingHandler().sendEmptyMessageDelayed(0, mPingSpace);
-            }
-
-            @Override
-            public void onMessage(WebSocket webSocket, String text) {
-                if (mEnableLog) {
-                    Log.d("WsConnManager", "onMessage-Accept:" + text);
-                }
-                if (null != mWsListener) {
-                    mWsListener.onWsMessage(text);
-                }
-            }
-
-            @Override
-            public void onMessage(WebSocket webSocket, ByteString bytes) {
-                WeakReference<String> wr = new WeakReference<>(bytes.toString());
-                if (mEnableLog) {
-                    Log.d("WsConnManager", "onMessage:" + wr.get());
-                }
-                if (null != mWsListener && !TextUtils.isEmpty(wr.get())) {
-                    mWsListener.onWsMessage(wr.get());
+                try {
+                    Buffer buffer = new Buffer();
+                    buffer.write("ping".getBytes(), 0, "ping".length());
+                    mWebSocket.sendPing(buffer);
+                    if (mEnableLog) {
+                        Log.d("WsConnManager", "OnMessage-Send:ping");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
 
             @Override
-            public void onClosing(WebSocket webSocket, int code, String reason) {
-                mWsState = WsState.CLOSING;
-                if (mEnableLog) {
-                    Log.d("WsConnManager", "onClosing---code:" + code + "---reason:" + reason);
-                }
-                if (null != mWsListener) {
-                    mWsListener.onWsClosing(code, reason);
+            public void onMessage(ResponseBody message) {
+                try {
+                    WeakReference<String> wr = null;
+                    wr = new WeakReference<>(message.string());
+                    if (mEnableLog) {
+                        Log.d("WsConnManager", "onMessage:" + wr.get());
+                    }
+                    if (null != mWsListener && !TextUtils.isEmpty(wr.get())) {
+                        mWsListener.onWsMessage(wr.get());
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
             }
 
             @Override
-            public void onClosed(WebSocket webSocket, int code, String reason) {
+            public void onClose(int code, String reason) {
                 mWsState = WsState.CLOSED;
                 if (mEnableLog) {
                     Log.d("WsConnManager", "onClosed---code:" + code + "---reason:" + reason);
@@ -174,13 +184,21 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
             }
 
             @Override
-            public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            public void onPong(Buffer payload) {
+                if (mEnableLog) {
+                    Log.d("WsConnManager", "OnMessage-Accept:onPng");
+                }
+                getsPingHandler().sendEmptyMessageDelayed(0, mPingSpace);
+            }
+
+            @Override
+            public void onFailure(IOException e, Response response) {
                 mWsState = WsState.FAILED;
                 if (mEnableLog) {
-                    Log.d("WsConnManager", "onFailure:" + t.getMessage());
+                    Log.d("WsConnManager", "onFailure:" + e.getMessage());
                 }
                 if (null != mWsListener) {
-                    mWsListener.onWsFail(t.getMessage());
+                    mWsListener.onWsFail(e, response);
                     if (mAutoReconnect) {
                         mWsListener.onWsReconnecting();
                     }
@@ -200,6 +218,7 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
                     getsReconnectHandler().sendEmptyMessageDelayed(1, mAutoReconnTime);
                 }
             }
+
         };
         return mWebSocketListener;
     }
@@ -212,7 +231,13 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
                 if (mEnableLog) {
                     Log.d("WsConnManager", "OnMessage-Send:" + message);
                 }
-                mWebSocket.send(message);
+                try {
+                    WeakReference<RequestBody> weakReference =
+                            new WeakReference<>(RequestBody.create(WebSocket.TEXT, message));
+                    mWebSocket.sendMessage(weakReference.get());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         });
     }
@@ -251,14 +276,19 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
                         .Builder()
                         .url(mUrl)
                         .build();
-                OkHttpClient client = new OkHttpClient.Builder()
+                OkHttpClient.Builder ob = new OkHttpClient.Builder()
                         .readTimeout(mReadTimeOut, TimeUnit.SECONDS)
                         .writeTimeout(mWriteTimeOut, TimeUnit.SECONDS)
-                        .callTimeout(mCallTimeOut, TimeUnit.SECONDS)
-                        .connectTimeout(mConnectTimeOut, TimeUnit.SECONDS)
-                        .build();
-                client.newWebSocket(request, getWebSocketListener());
-                client.dispatcher().executorService().shutdown();
+                        .connectTimeout(mConnectTimeOut, TimeUnit.SECONDS);
+                if (null != mX509TrustManager) {
+                    ob.sslSocketFactory(mSslScoketFactory, mX509TrustManager);
+                }
+                if (null != mHostnameVerifier) {
+                    ob.hostnameVerifier(mHostnameVerifier);
+                }
+                OkHttpClient client = ob.build();
+                WebSocketCall webSocketCall = WebSocketCall.create(client, request);
+                webSocketCall.enqueue(getWebSocketListener());
             }
         });
     }
@@ -280,12 +310,25 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
             mReconnectHandlerThred = null;
         }
         if (null != mWebSocket) {
-            mWebSocket.cancel();
-            mWebSocket = null;
+            try {
+                mWebSocket.close(3000, "normal close");
+                mWebSocket = null;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
         if (null != mContext && null != mConnection) {
             mContext.unbindService(mConnection);
             mContext = null;
+        }
+        if (null != mX509TrustManager) {
+            mX509TrustManager = null;
+        }
+        if (null != mSslScoketFactory) {
+            mSslScoketFactory = null;
+        }
+        if (null != mHostnameVerifier) {
+            mHostnameVerifier = null;
         }
     }
 
@@ -325,11 +368,6 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
             return this;
         }
 
-        public Builder callTimeOut(int callTimeOut) {
-            wsConnManager.mCallTimeOut = callTimeOut;
-            return this;
-        }
-
         public Builder connectTimeOut(int connTimeOut) {
             wsConnManager.mConnectTimeOut = connTimeOut;
             return this;
@@ -347,6 +385,17 @@ public final class WsConnManager implements Handler.Callback, OnNetChangeListene
 
         public Builder autoReconnTime(long autoReconnTime) {
             wsConnManager.mAutoReconnTime = autoReconnTime;
+            return this;
+        }
+
+        public Builder sslSocketFactory(SSLSocketFactory sslSocketFactory, X509TrustManager manager) {
+            wsConnManager.mSslScoketFactory = sslSocketFactory;
+            wsConnManager.mX509TrustManager = manager;
+            return this;
+        }
+
+        public Builder hostnameVerifier(HostnameVerifier hostnameVerifier) {
+            wsConnManager.mHostnameVerifier = hostnameVerifier;
             return this;
         }
 

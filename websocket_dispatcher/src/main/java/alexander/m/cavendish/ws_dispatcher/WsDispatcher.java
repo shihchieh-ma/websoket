@@ -1,6 +1,9 @@
 package alexander.m.cavendish.ws_dispatcher;
 
+import java.io.IOException;
+
 import alexander.m.cavendish.WsListener;
+import okhttp3.Response;
 
 /**
  * @Author:mashijie
@@ -45,17 +48,11 @@ public final class WsDispatcher implements WsListener {
         }
     }
 
-    @Override
-    public void onWsFail(String errorInfo) {
-        if (null != mOnWsStateListener) {
-            mOnWsStateListener.onWsFail(errorInfo);
-        }
-    }
 
     @Override
-    public void onWsClosing(int code, String reason) {
+    public void onWsFail(IOException e, Response response) {
         if (null != mOnWsStateListener) {
-            mOnWsStateListener.onWsClosing(code, reason);
+            mOnWsStateListener.onWsFail(e, response);
         }
     }
 

@@ -1,5 +1,9 @@
 package alexander.m.cavendish.ws_dispatcher;
 
+import java.io.IOException;
+
+import okhttp3.Response;
+
 /**
  * @Author:mashijie
  * @Date:2019/4/16
@@ -19,19 +23,10 @@ public interface OnWsStateListener {
 
     /**
      * ws连接失败
-     *
-     * @param errorInfo
+     * @param e
+     * @param response
      */
-    void onWsFail(String errorInfo);
-
-
-    /**
-     * ws关闭中
-     *
-     * @param code
-     * @param reason
-     */
-    void onWsClosing(int code, String reason);
+    void onWsFail(IOException e, Response response);
 
     /**
      * ws连接关闭
